@@ -146,6 +146,14 @@ app.use(
 app.use(express.json({ limit: "2mb" }));
 app.set("trust proxy", 1);
 
+// Added for Vercel unified deployment: strip /api prefix so routes work
+app.use((req, res, next) => {
+  if (req.url.startsWith("/api")) {
+    req.url = req.url.replace("/api", "");
+  }
+  next();
+});
+
 const authLimiter = createRateLimiter({
   windowMs: 15 * 60 * 1000,
   max: 20,
@@ -2027,16 +2035,24 @@ app.get("/:code([^/]+)", async (req, res) => {
   return res.redirect(302, link.original);
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+if (require.main === module || process.env.NODE_ENV !== "production") {
+  const server = app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
 
-  if (process.env.DATABASE_URL) {
-    ensureSchema()
-      .then(() => console.log("Neon schema ready"))
-      .catch((error) => {
-        console.error("Failed to initialize Neon schema:", error.message);
-      });
-  } else {
-    console.log("DATABASE_URL not set, auth/internal links are disabled");
-  }
-});
+    if (process.env.DATABASE_URL) {
+      ensureSchema()
+        .then(() => console.log("Neon schema ready"))
+        .catch((error) => {
+          console.error("Failed to initialize Neon schema:", error.message);
+        });
+    } else {
+      console.log("DATABASE_URL not set, auth/internal links are disabled");
+    }
+  });
+
+  server.on("error", (error) => {
+    console.error("Server error:", error.message);
+  });
+}
+
+module.exports = app;
