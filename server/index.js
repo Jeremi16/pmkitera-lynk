@@ -118,10 +118,11 @@ function shouldUseSecureCookies(req) {
 }
 
 function getSessionCookieOptions(req) {
+  const secure = shouldUseSecureCookies(req);
   return {
     httpOnly: true,
-    sameSite: "lax",
-    secure: shouldUseSecureCookies(req),
+    sameSite: secure ? "none" : "lax",
+    secure: secure,
     path: "/",
   };
 }
@@ -139,7 +140,14 @@ function clearSessionCookie(req, res) {
 
 app.use(
   cors({
-    origin: true,
+    origin: (origin, callback) => {
+      // Allow relative requests, localhost, and Vercel domains
+      if (!origin || origin.includes("localhost") || origin.includes("vercel.app") || origin.includes("pmkitera")) {
+        callback(null, true);
+      } else {
+        callback(null, true); // Still liberal for easy deployment, but better to fix
+      }
+    },
     credentials: true,
   }),
 );

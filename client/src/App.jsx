@@ -33,7 +33,7 @@ function cn(...inputs) {
 }
 
 const api = axios.create({
-  baseURL: "/api",
+  baseURL: import.meta.env.VITE_API_BASE_URL || "/api",
   withCredentials: true,
 });
 
