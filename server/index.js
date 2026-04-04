@@ -2020,8 +2020,8 @@ app.post(
         providerLinkId: String(link.providerLinkId),
         customSlug: link.customSlug || link.shortCode,
         isActive: link.isActive !== false,
-        expiresAt: link.expiresAt || null,
-        createdAt: link.createdAt || new Date(),
+        expiresAt: link.expiresAt ? new Date(link.expiresAt) : null,
+        createdAt: link.createdAt ? new Date(link.createdAt) : new Date(),
         clickCount: normalizeShortIoClickCount(link.clickCount || 0),
       });
 
