@@ -645,7 +645,7 @@ async function upsertImportedShortIoLink({
         COALESCE($10, NOW())
       )
       ON CONFLICT (provider, provider_link_id)
-      WHERE provider = 'shortio'
+      WHERE provider = 'shortio' AND provider_link_id IS NOT NULL
       DO UPDATE SET
         user_id = EXCLUDED.user_id,
         title = EXCLUDED.title,
