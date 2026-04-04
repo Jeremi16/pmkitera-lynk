@@ -424,6 +424,7 @@ export default function App() {
   const [message, setMessage] = useState(null);
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [importingShortIo, setImportingShortIo] = useState(false);
+  const [importingSingleLinkId, setImportingSingleLinkId] = useState(null);
   const [submittingLink, setSubmittingLink] = useState(false);
   const [savingLinkId, setSavingLinkId] = useState(null);
   const [deletingLinkId, setDeletingLinkId] = useState(null);
@@ -814,6 +815,33 @@ export default function App() {
       });
     } finally {
       setImportingShortIo(false);
+    }
+  }
+
+  async function handleImportSingleLink(linkItem) {
+    setImportingSingleLinkId(linkItem.providerLinkId);
+    try {
+      const { data } = await api.post(
+        "/admin/shortio/import-single",
+        linkItem,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+
+      await fetchProviderDiagnostics(); // Refresh table
+      
+      setMessage({
+        type: "success",
+        text: `Successfully imported "${linkItem.title || linkItem.shortCode}"!`,
+      });
+    } catch (error) {
+      setMessage({
+        type: "error",
+        text: formatApiError(error, "Failed to import Short.io link"),
+      });
+    } finally {
+      setImportingSingleLinkId(null);
     }
   }
 
@@ -1821,10 +1849,19 @@ export default function App() {
                   <h5 className="font-bold text-slate-900">Missing In Internal</h5>
                   {reconcileReport.missingInDatabase?.length ? (
                     reconcileReport.missingInDatabase.slice(0, 5).map((item) => (
-                      <div key={item.providerLinkId} className="panel bg-white p-4 space-y-1">
-                        <p className="font-semibold text-slate-900 truncate">{item.title || item.shortCode || item.shortUrl}</p>
-                        <p className="text-xs text-primary-600 truncate">{item.shortUrl}</p>
-                        <p className="text-[11px] text-slate-500 truncate">{item.originalUrl}</p>
+                      <div key={item.providerLinkId} className="panel bg-white p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="space-y-1 min-w-0">
+                          <p className="font-semibold text-slate-900 truncate">{item.title || item.shortCode || item.shortUrl}</p>
+                          <p className="text-xs text-primary-600 truncate">{item.shortUrl}</p>
+                          <p className="text-[11px] text-slate-500 truncate">{item.originalUrl}</p>
+                        </div>
+                        <button
+                          onClick={() => handleImportSingleLink(item)}
+                          disabled={importingSingleLinkId === item.providerLinkId}
+                          className="btn-secondary whitespace-nowrap text-[11px] h-8 px-3 ml-auto hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200"
+                        >
+                          {importingSingleLinkId === item.providerLinkId ? <Loader2 size={12} className="animate-spin" /> : "Import Internally"}
+                        </button>
                       </div>
                     ))
                   ) : (

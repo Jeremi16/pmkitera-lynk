@@ -1993,6 +1993,77 @@ app.post(
   },
 );
 
+app.post(
+  "/admin/shortio/import-single",
+  requireAuth,
+  requireAdmin,
+  writeLimiter,
+  async (req, res) => {
+    try {
+      const link = req.body;
+      if (!link || !link.providerLinkId || !link.originalUrl) {
+        return res.status(400).json({ error: "Invalid link payload" });
+      }
+
+      let ownerId = req.user.id;
+      if (link.ownerEmail) {
+        const matchedUser = await findUserByEmail(link.ownerEmail);
+        ownerId = matchedUser?.id || req.user.id;
+      }
+
+      const result = await upsertImportedShortIoLink({
+        userId: ownerId,
+        title: link.title || "",
+        originalUrl: link.originalUrl,
+        shortUrl: link.shortUrl,
+        shortCode: link.shortCode || extractShortCodeFromShortUrl(link.shortUrl),
+        providerLinkId: String(link.providerLinkId),
+        customSlug: link.customSlug || link.shortCode,
+        isActive: link.isActive !== false,
+        expiresAt: link.expiresAt || null,
+        createdAt: link.createdAt || new Date(),
+        clickCount: normalizeShortIoClickCount(link.clickCount || 0),
+      });
+
+      // Optimistically fetch latest clicks for this specific link if possible
+      try {
+        const domainId = await resolveShortIoDomainId();
+        const liveClicks = await fetchShortIoClickCountsByLinkIds([String(link.providerLinkId)], domainId);
+        if (liveClicks[String(link.providerLinkId)] !== undefined) {
+          result.clickCount = liveClicks[String(link.providerLinkId)];
+          await updateShortIoClickCounts({
+            [String(link.providerLinkId)]: {
+               clickCount: result.clickCount,
+               totalClicks: result.clickCount,
+               humanClicks: result.clickCount
+            }
+          });
+        }
+      } catch (e) {
+        // Ignored
+      }
+      
+      markShortIoClickRefreshComplete({ user: req.user });
+
+      await logAudit({
+        userId: req.user.id,
+        action: "shortio.import_single",
+        entityType: "link",
+        entityId: String(link.providerLinkId),
+        payload: { linkId: result.inserted ? "new" : "updated" },
+      });
+
+      return res.json({ success: true, inserted: result.inserted });
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        error: "Failed to import Short.io link",
+        details: error.message,
+      });
+    }
+  },
+);
+
 app.get("/:code([^/]+)", async (req, res) => {
   const { code } = req.params;
 
