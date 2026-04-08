@@ -111,6 +111,36 @@ const DEFAULT_SETTINGS = {
     gradientColor2: "#0ea5e9",
 };
 
+function applyQrSettings(instance, data, qrSettings) {
+  instance.update({
+    data: data || " ",
+    dotsOptions: {
+      type: qrSettings.dotsType,
+      color: qrSettings.gradient ? undefined : qrSettings.dotsColor,
+      gradient: qrSettings.gradient
+        ? {
+            type: "linear",
+            colorStops: [
+              { offset: 0, color: qrSettings.dotsColor },
+              { offset: 1, color: qrSettings.gradientColor2 },
+            ],
+          }
+        : undefined,
+    },
+    backgroundOptions: { color: qrSettings.backgroundColor },
+    cornersSquareOptions: {
+      type: qrSettings.cornersType,
+      color: qrSettings.dotsColor,
+    },
+    cornersDotOptions: {
+      type: qrSettings.cornersType === "dot" ? "dot" : "square",
+      color: qrSettings.dotsColor,
+    },
+    image: qrSettings.logo,
+    imageOptions: { imageSize: 0.22, margin: 6 },
+  });
+}
+
 function formatApiError(error, fallback) {
   const detail = error?.response?.data?.details;
   const message = error?.response?.data?.error;
@@ -480,8 +510,10 @@ export default function App() {
     expiresAt: "",
   });
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [activeQrLink, setActiveQrLink] = useState(null);
 
   const qrRef = useRef(null);
+  const qrModalRef = useRef(null);
   const isAdmin = user?.role === "admin";
   const selectedProvider = isAdmin ? form.provider : "shortio";
   const [qrCode] = useState(
@@ -500,8 +532,24 @@ export default function App() {
         imageOptions: { crossOrigin: "anonymous", margin: 10 },
       }),
   );
+  const [qrModalCode] = useState(
+    () =>
+      new QRCodeStyling({
+        width: 320,
+        height: 320,
+        type: "svg",
+        dotsOptions: {
+          color: DEFAULT_SETTINGS.dotsColor,
+          type: DEFAULT_SETTINGS.dotsType,
+        },
+        backgroundOptions: {
+          color: DEFAULT_SETTINGS.backgroundColor,
+        },
+        imageOptions: { crossOrigin: "anonymous", margin: 10 },
+      }),
+  );
 
-  const providerChoice = PROVIDERS[selectedProvider] || PROVIDERS.shortio;
+  const createQrData = shortUrl || form.url.trim();
 
   useEffect(() => {
     if (token) {
@@ -536,33 +584,7 @@ export default function App() {
   }, [copiedValue]);
 
   useEffect(() => {
-    qrCode.update({
-      data: shortUrl || "https://example.com",
-      dotsOptions: {
-        type: settings.dotsType,
-        color: settings.gradient ? undefined : settings.dotsColor,
-        gradient: settings.gradient
-          ? {
-              type: "linear",
-              colorStops: [
-                { offset: 0, color: settings.dotsColor },
-                { offset: 1, color: settings.gradientColor2 },
-              ],
-            }
-          : undefined,
-      },
-      backgroundOptions: { color: settings.backgroundColor },
-      cornersSquareOptions: {
-        type: settings.cornersType,
-        color: settings.dotsColor,
-      },
-      cornersDotOptions: {
-        type: settings.cornersType === "dot" ? "dot" : "square",
-        color: settings.dotsColor,
-      },
-      image: settings.logo,
-      imageOptions: { imageSize: 0.22, margin: 6 },
-    });
+    applyQrSettings(qrCode, createQrData, settings);
 
     if (qrRef.current) {
       if (qrRef.current.firstChild) {
@@ -570,7 +592,42 @@ export default function App() {
       }
       qrCode.append(qrRef.current);
     }
-  }, [qrCode, settings, shortUrl]);
+  }, [createQrData, qrCode, settings]);
+
+  useEffect(() => {
+    if (!activeQrLink) {
+      return;
+    }
+
+    const qrSettings = {
+      ...DEFAULT_SETTINGS,
+      ...(activeQrLink.qrConfig || {}),
+    };
+
+    applyQrSettings(qrModalCode, activeQrLink.short, qrSettings);
+
+    if (qrModalRef.current) {
+      if (qrModalRef.current.firstChild) {
+        qrModalRef.current.removeChild(qrModalRef.current.firstChild);
+      }
+      qrModalCode.append(qrModalRef.current);
+    }
+  }, [activeQrLink, qrModalCode]);
+
+  useEffect(() => {
+    if (!activeQrLink) {
+      return undefined;
+    }
+
+    function handleKeydown(event) {
+      if (event.key === "Escape") {
+        setActiveQrLink(null);
+      }
+    }
+
+    window.addEventListener("keydown", handleKeydown);
+    return () => window.removeEventListener("keydown", handleKeydown);
+  }, [activeQrLink]);
 
   useEffect(() => {
     if (!token) {
@@ -1075,24 +1132,25 @@ export default function App() {
     }
   }
 
-  function loadLinkIntoWorkspace(link) {
-    setShortUrl(link.short);
-    setProviderUsed(link.provider);
-    setForm({
-      url: link.original,
-      title: link.title || "",
-      provider: link.requestedProvider || link.provider,
-      customSlug: link.customSlug || link.shortCode || "",
-      expiresAt: formatDateTimeInput(link.expiresAt),
-    });
-    setSettings((current) => ({
-      ...current,
-      ...link.qrConfig,
-    }));
-    setMessage({
-      type: "success",
-      text: "Link loaded back into the workspace.",
-    });
+  function openLinkQrModal(link) {
+    setActiveQrLink(link);
+  }
+
+  function closeLinkQrModal() {
+    setActiveQrLink(null);
+  }
+
+  function downloadLinkQr(extension) {
+    if (!activeQrLink?.short) {
+      setMessage({ type: "error", text: "QR data is not available yet." });
+      return;
+    }
+
+    const name = activeQrLink.short
+      .replace(/^https?:\/\//, "")
+      .replace(/[^\w-]/g, "-");
+
+    qrModalCode.download({ name, extension });
   }
 
   function startEditingLink(link) {
@@ -1223,9 +1281,18 @@ export default function App() {
   }
 
   function downloadQr(extension) {
-    const name = shortUrl
-      ? shortUrl.replace(/^https?:\/\//, "").replace(/[^\w-]/g, "-")
-      : `qr-${Date.now()}`;
+    if (!createQrData) {
+      setMessage({
+        type: "error",
+        text: "Isi URL dulu atau generate short link sebelum download QR.",
+      });
+      return;
+    }
+
+    const name = createQrData
+      .replace(/^https?:\/\//, "")
+      .replace(/[^\w-]/g, "-") || `qr-${Date.now()}`;
+
     qrCode.download({ name, extension });
   }
 
@@ -1410,8 +1477,8 @@ export default function App() {
           </div>
           <div ref={qrRef} className="preview-shell scale-95 origin-center" />
           <div className="grid grid-cols-2 gap-3">
-            <button className="btn-secondary" onClick={() => downloadQr("png")}><Download size={16} /> PNG</button>
-            <button className="btn-secondary" onClick={() => downloadQr("svg")}><Download size={16} /> SVG</button>
+            <button type="button" className="btn-secondary" onClick={() => downloadQr("png")}><Download size={16} /> PNG</button>
+            <button type="button" className="btn-secondary" onClick={() => downloadQr("svg")}><Download size={16} /> SVG</button>
           </div>
           <div className="space-y-4 pt-4 border-t border-slate-100">
              <div className="flex items-center justify-between">
@@ -1508,9 +1575,9 @@ export default function App() {
                     <p className="text-xs text-slate-400 uppercase font-bold tracking-tight">Clicks</p>
                     <p className="text-lg font-bold text-slate-900">{link.clickCount}</p>
                   </div>
-                  <button className="btn-secondary p-3" onClick={() => handleCopy(link.short)}><Copy size={16} /></button>
-                  <button className="btn-secondary p-3" onClick={() => loadLinkIntoWorkspace(link)}><QrCode size={16} /></button>
-                  <button className="btn-secondary p-3 text-red-500 hover:bg-red-50" onClick={() => removeLink(link)} disabled={deletingLinkId === link.id}>
+                  <button type="button" className="btn-secondary p-3" onClick={() => handleCopy(link.short)}><Copy size={16} /></button>
+                  <button type="button" className="btn-secondary p-3" onClick={() => openLinkQrModal(link)}><QrCode size={16} /></button>
+                  <button type="button" className="btn-secondary p-3 text-red-500 hover:bg-red-50" onClick={() => removeLink(link)} disabled={deletingLinkId === link.id}>
                     {deletingLinkId === link.id ? <Loader2 className="animate-spin" size={16} /> : <Trash2 size={16} />}
                   </button>
                 </div>
@@ -2031,6 +2098,58 @@ export default function App() {
       </main>
 
       {/* ── Mobile bottom nav ── */}
+      {activeQrLink && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <button
+            type="button"
+            className="absolute inset-0 bg-slate-950/50"
+            onClick={closeLinkQrModal}
+            aria-label="Close QR popup"
+          />
+          <section className="panel relative z-10 w-full max-w-md space-y-4 p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">
+                  QR Preview
+                </p>
+                <h3 className="text-lg font-bold text-slate-900">
+                  {activeQrLink.title || activeQrLink.shortCode || "Short Link"}
+                </h3>
+                <p className="text-xs text-primary-600 break-all mt-1">
+                  {activeQrLink.short}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="btn-secondary h-9 px-3 text-xs"
+                onClick={closeLinkQrModal}
+              >
+                Close
+              </button>
+            </div>
+
+            <div ref={qrModalRef} className="preview-shell" />
+
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => downloadLinkQr("png")}
+              >
+                <Download size={16} /> PNG
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => downloadLinkQr("svg")}
+              >
+                <Download size={16} /> SVG
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
       <nav className="sidebar-mobile">
         {[
           { tab: "overview",   icon: <BarChart3 size={22} /> },
