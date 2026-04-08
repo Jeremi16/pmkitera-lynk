@@ -258,6 +258,14 @@
         @apply flex min-h-[260px] items-center justify-center rounded-2xl border border-slate-100 bg-gradient-to-br from-slate-50 to-white p-5 sm:min-h-[320px];
     }
 
+    .preview-shell canvas,
+    .preview-shell svg {
+        width: 100% !important;
+        max-width: 320px;
+        height: auto !important;
+        display: block;
+    }
+
     .upload-card {
         @apply flex min-h-[100px] cursor-pointer items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50 px-4 py-5 text-center text-xs text-slate-500 transition-all duration-200 hover:border-primary-300 hover:bg-primary-50/20 hover:text-slate-700;
     }

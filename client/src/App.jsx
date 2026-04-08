@@ -101,6 +101,7 @@ const EMPTY_NEW_USER_FORM = {
   role: "user",
 };
 const TOKEN_STORAGE_KEY = "qr_shortener_token_storage";
+const QR_DEFAULT_SIZE = 1024;
 const DEFAULT_SETTINGS = {
     dotsColor: "#0f172a",
     backgroundColor: "#ffffff",
@@ -501,6 +502,7 @@ export default function App() {
     customSlug: "",
     expiresAt: "",
     isActive: true,
+    qrConfig: { ...DEFAULT_SETTINGS },
   });
   const [form, setForm] = useState({
     url: "",
@@ -514,13 +516,14 @@ export default function App() {
 
   const qrRef = useRef(null);
   const qrModalRef = useRef(null);
+  const editQrRef = useRef(null);
   const isAdmin = user?.role === "admin";
   const selectedProvider = isAdmin ? form.provider : "shortio";
   const [qrCode] = useState(
     () =>
       new QRCodeStyling({
-        width: 320,
-        height: 320,
+        width: QR_DEFAULT_SIZE,
+        height: QR_DEFAULT_SIZE,
         type: "svg",
         dotsOptions: {
           color: DEFAULT_SETTINGS.dotsColor,
@@ -535,8 +538,24 @@ export default function App() {
   const [qrModalCode] = useState(
     () =>
       new QRCodeStyling({
-        width: 320,
-        height: 320,
+        width: QR_DEFAULT_SIZE,
+        height: QR_DEFAULT_SIZE,
+        type: "svg",
+        dotsOptions: {
+          color: DEFAULT_SETTINGS.dotsColor,
+          type: DEFAULT_SETTINGS.dotsType,
+        },
+        backgroundOptions: {
+          color: DEFAULT_SETTINGS.backgroundColor,
+        },
+        imageOptions: { crossOrigin: "anonymous", margin: 10 },
+      }),
+  );
+  const [editQrCode] = useState(
+    () =>
+      new QRCodeStyling({
+        width: QR_DEFAULT_SIZE,
+        height: QR_DEFAULT_SIZE,
         type: "svg",
         dotsOptions: {
           color: DEFAULT_SETTINGS.dotsColor,
@@ -628,6 +647,31 @@ export default function App() {
     window.addEventListener("keydown", handleKeydown);
     return () => window.removeEventListener("keydown", handleKeydown);
   }, [activeQrLink]);
+
+  useEffect(() => {
+    if (!editingLinkId) {
+      return;
+    }
+
+    const editingLink = links.find((item) => item.id === editingLinkId);
+    if (!editingLink) {
+      return;
+    }
+
+    const qrSettings = {
+      ...DEFAULT_SETTINGS,
+      ...(editDraft.qrConfig || {}),
+    };
+
+    applyQrSettings(editQrCode, editingLink.short, qrSettings);
+
+    if (editQrRef.current) {
+      if (editQrRef.current.firstChild) {
+        editQrRef.current.removeChild(editQrRef.current.firstChild);
+      }
+      editQrCode.append(editQrRef.current);
+    }
+  }, [editDraft.qrConfig, editQrCode, editingLinkId, links]);
 
   useEffect(() => {
     if (!token) {
@@ -949,6 +993,24 @@ export default function App() {
     }));
   }
 
+  function updateEditDraftField(field, value) {
+    setEditDraft((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  }
+
+  function updateEditQrConfigField(field, value) {
+    setEditDraft((current) => ({
+      ...current,
+      qrConfig: {
+        ...DEFAULT_SETTINGS,
+        ...(current.qrConfig || {}),
+        [field]: value,
+      },
+    }));
+  }
+
   function updateNewUserField(field, value) {
     setNewUserForm((current) => ({
       ...current,
@@ -1154,12 +1216,18 @@ export default function App() {
   }
 
   function startEditingLink(link) {
+    const linkQrConfig = {
+      ...DEFAULT_SETTINGS,
+      ...(link.qrConfig || {}),
+    };
+
     setEditingLinkId(link.id);
     setEditDraft({
       title: link.title || "",
       customSlug: link.customSlug || link.shortCode || "",
       expiresAt: formatDateTimeInput(link.expiresAt),
       isActive: link.isActive,
+      qrConfig: linkQrConfig,
     });
   }
 
@@ -1171,6 +1239,7 @@ export default function App() {
         title: editDraft.title,
         expiresAt: editDraft.expiresAt || null,
         isActive: editDraft.isActive,
+        qrConfig: editDraft.qrConfig || { ...DEFAULT_SETTINGS },
       };
 
       if (link.provider === "internal" || link.provider === "shortio") {
@@ -1577,11 +1646,208 @@ export default function App() {
                   </div>
                   <button type="button" className="btn-secondary p-3" onClick={() => handleCopy(link.short)}><Copy size={16} /></button>
                   <button type="button" className="btn-secondary p-3" onClick={() => openLinkQrModal(link)}><QrCode size={16} /></button>
+                  <button
+                    type="button"
+                    className={cn(
+                      "btn-secondary p-3",
+                      editingLinkId === link.id && "border-primary-300 text-primary-600 bg-primary-50",
+                    )}
+                    onClick={() =>
+                      editingLinkId === link.id
+                        ? setEditingLinkId(null)
+                        : startEditingLink(link)
+                    }
+                  >
+                    <Settings2 size={16} />
+                  </button>
                   <button type="button" className="btn-secondary p-3 text-red-500 hover:bg-red-50" onClick={() => removeLink(link)} disabled={deletingLinkId === link.id}>
                     {deletingLinkId === link.id ? <Loader2 className="animate-spin" size={16} /> : <Trash2 size={16} />}
                   </button>
                 </div>
               </div>
+
+              {editingLinkId === link.id && (
+                <div className="mt-6 border-t border-slate-100 pt-6 space-y-6">
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <label className="label-text">Title</label>
+                        <input
+                          className="input-field"
+                          value={editDraft.title}
+                          onChange={(event) =>
+                            updateEditDraftField("title", event.target.value)
+                          }
+                          placeholder="Campaign label"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="label-text">Custom Slug</label>
+                        <input
+                          className="input-field"
+                          value={editDraft.customSlug}
+                          onChange={(event) =>
+                            updateEditDraftField("customSlug", event.target.value)
+                          }
+                          placeholder="promo2026"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="label-text">Expiry</label>
+                        <input
+                          className="input-field"
+                          type="datetime-local"
+                          value={editDraft.expiresAt}
+                          onChange={(event) =>
+                            updateEditDraftField("expiresAt", event.target.value)
+                          }
+                        />
+                      </div>
+
+                      <label className="toggle-shell">
+                        <input
+                          type="checkbox"
+                          checked={editDraft.isActive}
+                          onChange={(event) =>
+                            updateEditDraftField("isActive", event.target.checked)
+                          }
+                        />
+                        Link aktif
+                      </label>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="panel-inset p-4">
+                        <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">
+                          QR Preview
+                        </p>
+                        <div ref={editQrRef} className="preview-shell mt-3" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Palette size={16} className="text-slate-500" />
+                      <p className="text-sm font-bold text-slate-900">QR Design</p>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                      <div className="space-y-2">
+                        <label className="label-text">QR Color</label>
+                        <div className="color-field h-11">
+                          <input
+                            type="color"
+                            value={editDraft.qrConfig?.dotsColor || DEFAULT_SETTINGS.dotsColor}
+                            onChange={(event) =>
+                              updateEditQrConfigField("dotsColor", event.target.value)
+                            }
+                          />
+                          <span>{editDraft.qrConfig?.dotsColor || DEFAULT_SETTINGS.dotsColor}</span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="label-text">Background</label>
+                        <div className="color-field h-11">
+                          <input
+                            type="color"
+                            value={editDraft.qrConfig?.backgroundColor || DEFAULT_SETTINGS.backgroundColor}
+                            onChange={(event) =>
+                              updateEditQrConfigField("backgroundColor", event.target.value)
+                            }
+                          />
+                          <span>{editDraft.qrConfig?.backgroundColor || DEFAULT_SETTINGS.backgroundColor}</span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="label-text">Dot Pattern</label>
+                        <select
+                          className="input-field"
+                          value={editDraft.qrConfig?.dotsType || DEFAULT_SETTINGS.dotsType}
+                          onChange={(event) =>
+                            updateEditQrConfigField("dotsType", event.target.value)
+                          }
+                        >
+                          {QR_STYLES.map((style) => (
+                            <option key={style} value={style}>{style}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="label-text">Corner Style</label>
+                        <select
+                          className="input-field"
+                          value={editDraft.qrConfig?.cornersType || DEFAULT_SETTINGS.cornersType}
+                          onChange={(event) =>
+                            updateEditQrConfigField("cornersType", event.target.value)
+                          }
+                        >
+                          {CORNER_STYLES.map((style) => (
+                            <option key={style} value={style}>{style}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <label className="toggle-shell">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(editDraft.qrConfig?.gradient)}
+                          onChange={(event) =>
+                            updateEditQrConfigField("gradient", event.target.checked)
+                          }
+                        />
+                        Aktifkan gradient
+                      </label>
+
+                      <div className="space-y-2">
+                        <label className="label-text">Gradient Color 2</label>
+                        <div className="color-field h-11">
+                          <input
+                            type="color"
+                            value={editDraft.qrConfig?.gradientColor2 || DEFAULT_SETTINGS.gradientColor2}
+                            onChange={(event) =>
+                              updateEditQrConfigField("gradientColor2", event.target.value)
+                            }
+                          />
+                          <span>{editDraft.qrConfig?.gradientColor2 || DEFAULT_SETTINGS.gradientColor2}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row sm:justify-end gap-3">
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => setEditingLinkId(null)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-primary"
+                      disabled={savingLinkId === link.id}
+                      onClick={() => saveLinkEdits(link)}
+                    >
+                      {savingLinkId === link.id ? (
+                        <>
+                          <Loader2 className="animate-spin" size={16} />
+                          Saving...
+                        </>
+                      ) : (
+                        "Save Changes"
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
             </article>
           ))}
         </div>
