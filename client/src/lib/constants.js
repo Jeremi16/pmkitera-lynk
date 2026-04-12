@@ -1,3 +1,5 @@
+export const SHORT_IO_PREVIEW_DOMAIN = "https://s.pmkitera.com";
+export const INTERNAL_PREVIEW_DOMAIN = import.meta.env.VITE_APP_BASE_URL || "http://localhost:5000";
 export const QR_STYLES = ["square", "dots", "rounded", "classy", "extra-rounded"];
 export const CORNER_STYLES = ["square", "dot", "extra-rounded"];
 export const PROVIDERS = {

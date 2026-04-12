@@ -21,7 +21,9 @@ import {
   EMPTY_SUMMARY,
   EMPTY_SYNC_HEALTH,
   EMPTY_TRAFFIC_INSIGHTS,
+  INTERNAL_PREVIEW_DOMAIN,
   QR_DEFAULT_SIZE,
+  SHORT_IO_PREVIEW_DOMAIN,
   TOKEN_STORAGE_KEY,
 } from "./lib/constants";
 import { api } from "./lib/api";
@@ -198,7 +200,10 @@ export default function App() {
       }),
   );
 
-  const createQrData = shortUrl || form.url.trim();
+  // Build QR preview data: prioritize shortUrl result, then slug-based preview, then raw destination
+  const previewDomain = selectedProvider === "shortio" ? SHORT_IO_PREVIEW_DOMAIN : INTERNAL_PREVIEW_DOMAIN;
+  const slugPreview = form.customSlug.trim() ? `${previewDomain}/${form.customSlug.trim()}` : "";
+  const createQrData = shortUrl || slugPreview || form.url.trim();
 
   // ── Navigation helper ──
   const navigateToTab = useCallback((tab) => {
@@ -678,7 +683,7 @@ export default function App() {
               path="/create"
               element={
                 <CreateTab
-                  form={form} settings={settings} shortUrl={shortUrl} selectedProvider={selectedProvider} submittingLink={submittingLink} qrRef={qrRef}
+                  form={form} settings={settings} shortUrl={shortUrl} selectedProvider={selectedProvider} submittingLink={submittingLink} qrRef={qrRef} createQrData={createQrData}
                   onUpdateFormField={updateFormField} onUpdateSettingsField={updateSettingsField} onCreateLink={handleCreateLink} onDownloadQr={downloadQr} onCopy={handleCopy} onSwitchToProviders={() => navigate("/providers")}
                 />
               }

@@ -7,7 +7,7 @@ import {
   Palette,
   Zap,
 } from "lucide-react";
-import { CORNER_STYLES, PROVIDERS, QR_STYLES } from "../lib/constants";
+import { CORNER_STYLES, INTERNAL_PREVIEW_DOMAIN, PROVIDERS, QR_STYLES, SHORT_IO_PREVIEW_DOMAIN } from "../lib/constants";
 import { cn } from "../lib/utils";
 
 export default function CreateTab({
@@ -17,6 +17,7 @@ export default function CreateTab({
   selectedProvider,
   submittingLink,
   qrRef,
+  createQrData,
   onUpdateFormField,
   onUpdateSettingsField,
   onCreateLink,
@@ -24,6 +25,8 @@ export default function CreateTab({
   onCopy,
   onSwitchToProviders,
 }) {
+  const previewDomain = selectedProvider === "shortio" ? SHORT_IO_PREVIEW_DOMAIN : INTERNAL_PREVIEW_DOMAIN;
+  const previewSlug = form.customSlug.trim() || "______";
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_400px] animate-fade-in">
       <section className="panel space-y-6">
@@ -112,10 +115,16 @@ export default function CreateTab({
              </div>
              <div className="panel-inset p-4 bg-slate-50/50 border-slate-100 overflow-hidden">
                 <p className="text-sm font-bold text-slate-900 break-all truncate">
-                  {selectedProvider === 'shortio' ? 's.pmkitera.com' : 'localhost:5000'}/{form.customSlug || '______'}
+                  {previewDomain.replace(/^https?:\/\//, '')}/{previewSlug}
                 </p>
                 <p className="text-[10px] text-slate-400 mt-1 font-medium">Estimated generated link format</p>
              </div>
+             {createQrData && (
+               <div className="panel-inset p-3 bg-primary-50/30 border-primary-100 overflow-hidden mt-2">
+                 <p className="text-[10px] uppercase tracking-widest text-primary-500 font-bold">QR Encodes</p>
+                 <p className="text-xs font-medium text-slate-700 break-all mt-0.5">{createQrData}</p>
+               </div>
+             )}
           </div>
 
           {shortUrl && (
