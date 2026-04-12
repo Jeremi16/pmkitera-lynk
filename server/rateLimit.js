@@ -25,12 +25,21 @@ function createRateLimiter({
       return;
     }
 
+    // Linear eviction of overflow entries (O(n) instead of O(n log n) sort)
     const overflow = buckets.size - maxEntries;
-    const oldestBuckets = [...buckets.entries()]
-      .sort((left, right) => left[1].lastSeenAt - right[1].lastSeenAt)
-      .slice(0, overflow);
+    let oldest = [];
+    for (const [key, bucket] of buckets.entries()) {
+      if (oldest.length < overflow) {
+        oldest.push([key, bucket.lastSeenAt]);
+        continue;
+      }
+      const maxIdx = oldest.reduce((mi, c, i, a) => c[1] > a[mi][1] ? i : mi, 0);
+      if (bucket.lastSeenAt < oldest[maxIdx][1]) {
+        oldest[maxIdx] = [key, bucket.lastSeenAt];
+      }
+    }
 
-    for (const [key] of oldestBuckets) {
+    for (const [key] of oldest) {
       buckets.delete(key);
     }
   }

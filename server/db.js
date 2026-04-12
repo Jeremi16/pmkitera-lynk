@@ -99,7 +99,9 @@ async function ensureSchema() {
     return true;
   }
 
+  // Batch all DDL into a single multi-statement query to minimize round trips
   await db.query(`
+    -- Tables
     CREATE TABLE IF NOT EXISTS users (
       id BIGSERIAL PRIMARY KEY,
       email TEXT NOT NULL UNIQUE,
@@ -108,20 +110,10 @@ async function ensureSchema() {
       role TEXT NOT NULL DEFAULT 'user',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
-  `);
 
-  await db.query(`
-    UPDATE users
-    SET role = 'user'
-    WHERE role IS DISTINCT FROM 'admin';
-  `);
+    UPDATE users SET role = 'user' WHERE role IS DISTINCT FROM 'admin';
+    ALTER TABLE users ALTER COLUMN role SET DEFAULT 'user';
 
-  await db.query(`
-    ALTER TABLE users
-    ALTER COLUMN role SET DEFAULT 'user';
-  `);
-
-  await db.query(`
     CREATE TABLE IF NOT EXISTS sessions (
       id BIGSERIAL PRIMARY KEY,
       user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -129,9 +121,7 @@ async function ensureSchema() {
       expires_at TIMESTAMPTZ NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
-  `);
 
-  await db.query(`
     CREATE TABLE IF NOT EXISTS links (
       id BIGSERIAL PRIMARY KEY,
       user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -150,89 +140,25 @@ async function ensureSchema() {
       qr_config JSONB NOT NULL DEFAULT '{}'::jsonb,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
-  `);
 
-  await db.query(`
-    ALTER TABLE links
-    ADD COLUMN IF NOT EXISTS title TEXT;
-  `);
+    -- Column migrations for links
+    ALTER TABLE links ADD COLUMN IF NOT EXISTS title TEXT;
+    ALTER TABLE links ADD COLUMN IF NOT EXISTS custom_slug TEXT;
+    ALTER TABLE links ADD COLUMN IF NOT EXISTS provider_link_id TEXT;
+    ALTER TABLE links ADD COLUMN IF NOT EXISTS requested_provider TEXT NOT NULL DEFAULT 'shortio';
+    ALTER TABLE links ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
+    ALTER TABLE links ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
+    ALTER TABLE links ADD COLUMN IF NOT EXISTS click_count INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE links ADD COLUMN IF NOT EXISTS last_clicked_at TIMESTAMPTZ;
+    ALTER TABLE links ADD COLUMN IF NOT EXISTS last_provider_sync_at TIMESTAMPTZ;
+    ALTER TABLE links ADD COLUMN IF NOT EXISTS provider_sync_status TEXT NOT NULL DEFAULT 'pending';
+    ALTER TABLE links ADD COLUMN IF NOT EXISTS provider_sync_error TEXT;
+    ALTER TABLE links ADD COLUMN IF NOT EXISTS last_provider_total_clicks INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE links ADD COLUMN IF NOT EXISTS last_provider_human_clicks INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE links ADD COLUMN IF NOT EXISTS last_provider_period_key TEXT;
+    ALTER TABLE links ADD COLUMN IF NOT EXISTS last_provider_period_human_clicks INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE links ADD COLUMN IF NOT EXISTS qr_config JSONB NOT NULL DEFAULT '{}'::jsonb;
 
-  await db.query(`
-    ALTER TABLE links
-    ADD COLUMN IF NOT EXISTS custom_slug TEXT;
-  `);
-
-  await db.query(`
-    ALTER TABLE links
-    ADD COLUMN IF NOT EXISTS provider_link_id TEXT;
-  `);
-
-  await db.query(`
-    ALTER TABLE links
-    ADD COLUMN IF NOT EXISTS requested_provider TEXT NOT NULL DEFAULT 'shortio';
-  `);
-
-  await db.query(`
-    ALTER TABLE links
-    ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
-  `);
-
-  await db.query(`
-    ALTER TABLE links
-    ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
-  `);
-
-  await db.query(`
-    ALTER TABLE links
-    ADD COLUMN IF NOT EXISTS click_count INTEGER NOT NULL DEFAULT 0;
-  `);
-
-  await db.query(`
-    ALTER TABLE links
-    ADD COLUMN IF NOT EXISTS last_clicked_at TIMESTAMPTZ;
-  `);
-
-  await db.query(`
-    ALTER TABLE links
-    ADD COLUMN IF NOT EXISTS last_provider_sync_at TIMESTAMPTZ;
-  `);
-
-  await db.query(`
-    ALTER TABLE links
-    ADD COLUMN IF NOT EXISTS provider_sync_status TEXT NOT NULL DEFAULT 'pending';
-  `);
-
-  await db.query(`
-    ALTER TABLE links
-    ADD COLUMN IF NOT EXISTS provider_sync_error TEXT;
-  `);
-
-  await db.query(`
-    ALTER TABLE links
-    ADD COLUMN IF NOT EXISTS last_provider_total_clicks INTEGER NOT NULL DEFAULT 0;
-  `);
-
-  await db.query(`
-    ALTER TABLE links
-    ADD COLUMN IF NOT EXISTS last_provider_human_clicks INTEGER NOT NULL DEFAULT 0;
-  `);
-
-  await db.query(`
-    ALTER TABLE links
-    ADD COLUMN IF NOT EXISTS last_provider_period_key TEXT;
-  `);
-
-  await db.query(`
-    ALTER TABLE links
-    ADD COLUMN IF NOT EXISTS last_provider_period_human_clicks INTEGER NOT NULL DEFAULT 0;
-  `);
-
-  await db.query(`
-    ALTER TABLE links
-    ADD COLUMN IF NOT EXISTS qr_config JSONB NOT NULL DEFAULT '{}'::jsonb;
-  `);
-
-  await db.query(`
     CREATE TABLE IF NOT EXISTS click_events (
       id BIGSERIAL PRIMARY KEY,
       link_id BIGINT NOT NULL REFERENCES links(id) ON DELETE CASCADE,
@@ -241,9 +167,7 @@ async function ensureSchema() {
       user_agent TEXT,
       ip_hash TEXT
     );
-  `);
 
-  await db.query(`
     CREATE TABLE IF NOT EXISTS shortio_link_daily_stats (
       id BIGSERIAL PRIMARY KEY,
       link_id BIGINT NOT NULL REFERENCES links(id) ON DELETE CASCADE,
@@ -253,9 +177,7 @@ async function ensureSchema() {
       synced_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
-  `);
 
-  await db.query(`
     CREATE TABLE IF NOT EXISTS shortio_link_breakdowns (
       id BIGSERIAL PRIMARY KEY,
       link_id BIGINT NOT NULL REFERENCES links(id) ON DELETE CASCADE,
@@ -267,9 +189,7 @@ async function ensureSchema() {
       synced_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
-  `);
 
-  await db.query(`
     CREATE TABLE IF NOT EXISTS audit_logs (
       id BIGSERIAL PRIMARY KEY,
       user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
@@ -279,79 +199,47 @@ async function ensureSchema() {
       payload JSONB NOT NULL DEFAULT '{}'::jsonb,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+
+    -- Indexes
+    CREATE INDEX IF NOT EXISTS sessions_user_id_idx ON sessions (user_id);
+    CREATE INDEX IF NOT EXISTS sessions_expires_at_idx ON sessions (expires_at DESC);
+    ALTER TABLE links DROP CONSTRAINT IF EXISTS links_short_url_key;
+    CREATE INDEX IF NOT EXISTS links_user_id_idx ON links (user_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS links_created_at_idx ON links (created_at DESC);
+    CREATE INDEX IF NOT EXISTS links_provider_short_code_idx ON links (provider, short_code);
+    CREATE INDEX IF NOT EXISTS click_events_link_id_idx ON click_events (link_id, clicked_at DESC);
+    CREATE INDEX IF NOT EXISTS audit_logs_created_at_idx ON audit_logs (created_at DESC);
   `);
 
-  await db.query(`
-    CREATE INDEX IF NOT EXISTS sessions_user_id_idx
-    ON sessions (user_id);
-  `);
-
-  await db.query(`
-    CREATE INDEX IF NOT EXISTS sessions_expires_at_idx
-    ON sessions (expires_at DESC);
-  `);
-
-  await db.query(`
-    ALTER TABLE links
-    DROP CONSTRAINT IF EXISTS links_short_url_key;
-  `);
-
-  await db.query(`
-    CREATE INDEX IF NOT EXISTS links_user_id_idx
-    ON links (user_id, created_at DESC);
-  `);
-
-  await db.query(`
-    CREATE INDEX IF NOT EXISTS links_created_at_idx
-    ON links (created_at DESC);
-  `);
-
-  await db.query(`
-    CREATE INDEX IF NOT EXISTS links_provider_short_code_idx
-    ON links (provider, short_code);
-  `);
-
-  await db.query(`
-    CREATE UNIQUE INDEX IF NOT EXISTS links_internal_code_unique_idx
-    ON links (provider, short_code)
-    WHERE short_code IS NOT NULL AND provider = 'internal';
-  `);
-
-  await db.query(`
-    CREATE UNIQUE INDEX IF NOT EXISTS links_shortio_provider_link_id_unique_idx
-    ON links (provider, provider_link_id)
-    WHERE provider = 'shortio' AND provider_link_id IS NOT NULL;
-  `);
-
-  await db.query(`
-    CREATE INDEX IF NOT EXISTS click_events_link_id_idx
-    ON click_events (link_id, clicked_at DESC);
-  `);
-
-  await db.query(`
-    CREATE UNIQUE INDEX IF NOT EXISTS shortio_link_daily_stats_link_date_unique_idx
-    ON shortio_link_daily_stats (link_id, stat_date);
-  `);
-
-  await db.query(`
-    CREATE INDEX IF NOT EXISTS shortio_link_daily_stats_date_idx
-    ON shortio_link_daily_stats (stat_date DESC, link_id);
-  `);
-
-  await db.query(`
-    CREATE UNIQUE INDEX IF NOT EXISTS shortio_link_breakdowns_unique_idx
-    ON shortio_link_breakdowns (link_id, period_key, dimension, value_key);
-  `);
-
-  await db.query(`
-    CREATE INDEX IF NOT EXISTS shortio_link_breakdowns_dim_idx
-    ON shortio_link_breakdowns (dimension, period_key, clicks DESC);
-  `);
-
-  await db.query(`
-    CREATE INDEX IF NOT EXISTS audit_logs_created_at_idx
-    ON audit_logs (created_at DESC);
-  `);
+  // Partial/unique indexes must be separate statements in some PG versions
+  await Promise.all([
+    db.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS links_internal_code_unique_idx
+      ON links (provider, short_code)
+      WHERE short_code IS NOT NULL AND provider = 'internal';
+    `),
+    db.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS links_shortio_provider_link_id_unique_idx
+      ON links (provider, provider_link_id)
+      WHERE provider = 'shortio' AND provider_link_id IS NOT NULL;
+    `),
+    db.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS shortio_link_daily_stats_link_date_unique_idx
+      ON shortio_link_daily_stats (link_id, stat_date);
+    `),
+    db.query(`
+      CREATE INDEX IF NOT EXISTS shortio_link_daily_stats_date_idx
+      ON shortio_link_daily_stats (stat_date DESC, link_id);
+    `),
+    db.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS shortio_link_breakdowns_unique_idx
+      ON shortio_link_breakdowns (link_id, period_key, dimension, value_key);
+    `),
+    db.query(`
+      CREATE INDEX IF NOT EXISTS shortio_link_breakdowns_dim_idx
+      ON shortio_link_breakdowns (dimension, period_key, clicks DESC);
+    `),
+  ]);
 
   schemaReady = true;
   return true;
@@ -364,7 +252,6 @@ async function countUsers() {
     return 0;
   }
 
-  await ensureSchema();
   const { rows } = await db.query("SELECT COUNT(*)::int AS count FROM users;");
   return rows[0]?.count || 0;
 }
@@ -375,8 +262,6 @@ async function createUser({ email, name, passwordHash, role = "user" }) {
   if (!db) {
     throw new Error("DATABASE_URL is required");
   }
-
-  await ensureSchema();
 
   const { rows } = await db.query(
     `
@@ -402,8 +287,6 @@ async function findUserByEmail(email) {
     return null;
   }
 
-  await ensureSchema();
-
   const { rows } = await db.query(
     `
       SELECT *
@@ -424,8 +307,6 @@ async function findUserById(id) {
     return null;
   }
 
-  await ensureSchema();
-
   const { rows } = await db.query(
     `
       SELECT id, email, name, role, created_at
@@ -445,8 +326,6 @@ async function listUsers({ limit = 50 } = {}) {
   if (!db) {
     return [];
   }
-
-  await ensureSchema();
 
   const { rows } = await db.query(
     `
@@ -481,8 +360,6 @@ async function createSession({ userId, tokenHash, expiresAt }) {
     throw new Error("DATABASE_URL is required");
   }
 
-  await ensureSchema();
-
   await db.query(
     `
       INSERT INTO sessions (user_id, token_hash, expires_at)
@@ -498,8 +375,6 @@ async function findSessionByTokenHash(tokenHash) {
   if (!db) {
     return null;
   }
-
-  await ensureSchema();
 
   const { rows } = await db.query(
     `
@@ -536,8 +411,20 @@ async function deleteSession(tokenHash) {
     return;
   }
 
-  await ensureSchema();
   await db.query("DELETE FROM sessions WHERE token_hash = $1;", [tokenHash]);
+}
+
+async function deleteExpiredSessions() {
+  const db = getPool();
+
+  if (!db) {
+    return 0;
+  }
+
+  const result = await db.query(
+    "DELETE FROM sessions WHERE expires_at <= NOW();",
+  );
+  return Number(result.rowCount || 0);
 }
 
 async function createLink({
@@ -558,8 +445,6 @@ async function createLink({
   if (!db) {
     throw new Error("DATABASE_URL is required");
   }
-
-  await ensureSchema();
 
   const { rows } = await db.query(
     `
@@ -619,8 +504,6 @@ async function upsertImportedShortIoLink({
   if (!providerLinkId) {
     throw new Error("providerLinkId is required for Short.io import");
   }
-
-  await ensureSchema();
 
   const { rows } = await db.query(
     `
@@ -750,8 +633,6 @@ async function listLinks({
     return { links: [], total: 0 };
   }
 
-  await ensureSchema();
-
   const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
   const safePage = Math.max(Number(page) || 1, 1);
   const offset = (safePage - 1) * safeLimit;
@@ -808,8 +689,6 @@ async function listShortIoLinksForSync({
   if (!db) {
     return [];
   }
-
-  await ensureSchema();
 
   const filters = buildLinkFilters({
     userId,
@@ -873,8 +752,6 @@ async function updateShortIoClickCounts(clicksByProviderLinkId = {}) {
   if (!db) {
     return 0;
   }
-
-  await ensureSchema();
 
   const updates = Object.entries(clicksByProviderLinkId)
     .map(([providerLinkId, payload]) => {
@@ -964,8 +841,6 @@ async function markShortIoLinkSyncStatus({
     return 0;
   }
 
-  await ensureSchema();
-
   const whereClauses = [];
   const values = [];
 
@@ -1029,8 +904,6 @@ async function upsertShortIoAnalyticsSnapshot({
   if (!db) {
     return { updatedLink: false, dailyStats: 0, breakdowns: 0 };
   }
-
-  await ensureSchema();
 
   const safeHumanClicks = Math.max(0, Math.trunc(Number(humanClicks) || 0));
   const safeTotalClicks = Math.max(0, Math.trunc(Number(totalClicks) || 0));
@@ -1236,8 +1109,6 @@ async function getShortIoTrafficInsights({
     };
   }
 
-  await ensureSchema();
-
   const safeLimit = Math.min(Math.max(Number(limit) || 5, 1), 10);
   const dimensions = ["country", "browser", "os", "city", "referer"];
   const breakdownValues = [dimensions, periodKey];
@@ -1349,8 +1220,6 @@ async function getLinkById(id, { userId, isAdmin = false }) {
     return null;
   }
 
-  await ensureSchema();
-
   const values = [id];
   let ownerClause = "";
 
@@ -1383,8 +1252,6 @@ async function getInternalLinkByCode(shortCode) {
     return null;
   }
 
-  await ensureSchema();
-
   const { rows } = await db.query(
     `
       SELECT
@@ -1410,8 +1277,6 @@ async function listRedirectLinksByCode(shortCode) {
     return [];
   }
 
-  await ensureSchema();
-
   const { rows } = await db.query(
     `
       SELECT
@@ -1436,8 +1301,6 @@ async function updateLink(id, updates, { userId, isAdmin = false }) {
   if (!db) {
     throw new Error("DATABASE_URL is required");
   }
-
-  await ensureSchema();
 
   const setClauses = [];
   const values = [];
@@ -1516,8 +1379,6 @@ async function deleteLink(id, { userId, isAdmin = false }) {
     throw new Error("DATABASE_URL is required");
   }
 
-  await ensureSchema();
-
   const values = [id];
   let ownerClause = "";
 
@@ -1546,25 +1407,20 @@ async function recordClick({ linkId, referrer, userAgent, ipHash }) {
     return;
   }
 
-  await ensureSchema();
-
+  // Single CTE query: insert click event + update link counter atomically
   await db.query(
     `
-      INSERT INTO click_events (link_id, referrer, user_agent, ip_hash)
-      VALUES ($1, $2, $3, $4);
-    `,
-    [linkId, referrer || null, userAgent || null, ipHash || null],
-  );
-
-  await db.query(
-    `
+      WITH inserted AS (
+        INSERT INTO click_events (link_id, referrer, user_agent, ip_hash)
+        VALUES ($1, $2, $3, $4)
+      )
       UPDATE links
       SET
         click_count = click_count + 1,
         last_clicked_at = NOW()
       WHERE id = $1;
     `,
-    [linkId],
+    [linkId, referrer || null, userAgent || null, ipHash || null],
   );
 }
 
@@ -1582,8 +1438,6 @@ async function getDashboardSummary({ userId, isAdmin = false }) {
       usersCount: 0,
     };
   }
-
-  await ensureSchema();
 
   const values = [];
   let whereSql = "";
@@ -1634,8 +1488,6 @@ async function getClickSeries({ userId, isAdmin = false, days = 7 }) {
   if (!db) {
     return [];
   }
-
-  await ensureSchema();
 
   const safeDays = Math.min(Math.max(Number(days) || 7, 1), 90);
   const values = [safeDays];
@@ -1703,8 +1555,6 @@ async function getTopLinks({ userId, isAdmin = false, limit = 5 }) {
     return [];
   }
 
-  await ensureSchema();
-
   const values = [Math.min(Math.max(limit, 1), 10)];
   let whereSql = "";
 
@@ -1743,8 +1593,6 @@ async function logAudit({
     return;
   }
 
-  await ensureSchema();
-
   await db.query(
     `
       INSERT INTO audit_logs (user_id, action, entity_type, entity_id, payload)
@@ -1760,8 +1608,6 @@ async function listAuditLogs({ userId, isAdmin = false, limit = 10 }) {
   if (!db) {
     return [];
   }
-
-  await ensureSchema();
 
   const safeLimit = Math.min(Math.max(limit, 1), 50);
   const values = [safeLimit];
@@ -1795,6 +1641,7 @@ module.exports = {
   createLink,
   createSession,
   createUser,
+  deleteExpiredSessions,
   deleteLink,
   deleteSession,
   ensureSchema,
