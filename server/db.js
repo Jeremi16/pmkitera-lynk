@@ -15,6 +15,10 @@ function getPool() {
       max: 8,
       idleTimeoutMillis: 30000,
     });
+
+    pool.on("error", (err) => {
+      console.error("Unexpected error on idle client:", err.message);
+    });
   }
 
   return pool;
