@@ -288,7 +288,13 @@ export default function App() {
         const { data } = await api.get("/auth/me", {
           headers: { Authorization: `Bearer ${token}` },
         });
-        let autoSyncError = null;
+
+        if (!ignore) {
+          setUser(data.user);
+          setSessionLoading(false);
+        }
+
+        // Run auto-sync in the background
         if (data.user?.role === "admin") {
           try {
             await api.post("/admin/shortio/import", {}, {
@@ -296,21 +302,18 @@ export default function App() {
             });
           } catch (syncError) {
             console.error("Auto-sync failed:", syncError.message);
-            autoSyncError = formatApiError(syncError, "Short.io auto-sync failed. Dashboard data may still be stale until you sync manually.");
+            if (!ignore) {
+              setMessage({ type: "error", text: formatApiError(syncError, "Short.io auto-sync failed. Dashboard data may still be stale until you sync manually.") });
+            }
           }
-        }
-        if (!ignore) {
-          setUser(data.user);
-          if (autoSyncError) setMessage({ type: "error", text: autoSyncError });
         }
       } catch (error) {
         if (!ignore) {
           setToken("");
           setUser(null);
           setAuthError("Your session expired. Please login again.");
+          setSessionLoading(false);
         }
-      } finally {
-        if (!ignore) setSessionLoading(false);
       }
     }
 

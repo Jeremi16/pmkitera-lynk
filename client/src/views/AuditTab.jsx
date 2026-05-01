@@ -1,6 +1,7 @@
 import React from "react";
 import { Loader2, Shield, UserRound } from "lucide-react";
 import { cn, formatReadableDate } from "../lib/utils";
+import Select from "../components/Select";
 
 export default function AuditTab({
   users,
@@ -45,10 +46,14 @@ export default function AuditTab({
             </div>
             <div className="space-y-2">
               <label className="label-text">Role</label>
-              <select className="input-field" value={newUserForm.role} onChange={(event) => onUpdateNewUserField("role", event.target.value)}>
-                <option value="user">User</option>
-                <option value="admin">Admin</option>
-              </select>
+              <Select
+                value={newUserForm.role}
+                onChange={(val) => onUpdateNewUserField("role", val)}
+                options={[
+                  { value: "user", label: "User" },
+                  { value: "admin", label: "Admin" }
+                ]}
+              />
             </div>
             <button className="btn-primary w-full h-12" disabled={creatingUser}>
               {creatingUser ? (<><Loader2 className="animate-spin" size={16} />Creating user...</>) : (<><Shield size={16} />Create new user</>)}

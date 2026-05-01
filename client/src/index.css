@@ -111,7 +111,7 @@
 
     /* ── Panels ───────────────────────────────── */
     .panel {
-        @apply relative overflow-hidden rounded-3xl border border-white/80 bg-white/75 shadow-xl shadow-slate-200/60 backdrop-blur-2xl p-6 md:p-8 transition-shadow duration-300;
+        @apply relative rounded-3xl border border-white/80 bg-white/75 shadow-xl shadow-slate-200/60 backdrop-blur-2xl p-6 md:p-8 transition-shadow duration-300;
     }
 
     .panel-inset {
@@ -180,6 +180,18 @@
 
     .color-field input {
         @apply h-9 w-10 cursor-pointer rounded-lg border-none bg-transparent p-0;
+    }
+
+    .color-field input::-webkit-color-swatch-wrapper {
+        @apply p-0;
+    }
+
+    .color-field input::-webkit-color-swatch {
+        @apply rounded-md border border-slate-200/60 shadow-sm;
+    }
+
+    .color-field input::-moz-color-swatch {
+        @apply rounded-md border border-slate-200/60 shadow-sm;
     }
 
     .toggle-shell {

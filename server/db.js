@@ -530,7 +530,6 @@ async function upsertImportedShortIoLink({
       ON CONFLICT (provider, provider_link_id)
       WHERE provider = 'shortio' AND provider_link_id IS NOT NULL
       DO UPDATE SET
-        user_id = EXCLUDED.user_id,
         title = EXCLUDED.title,
         original_url = EXCLUDED.original_url,
         short_url = EXCLUDED.short_url,

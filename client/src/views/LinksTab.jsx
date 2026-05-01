@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import { CORNER_STYLES, DEFAULT_SETTINGS, PROVIDERS, QR_STYLES } from "../lib/constants";
 import { cn, formatReadableDate } from "../lib/utils";
+import ColorPicker from "../components/ColorPicker";
+import Select from "../components/Select";
 
 export default function LinksTab({
   links,
@@ -49,16 +51,26 @@ export default function LinksTab({
             <Search size={16} />
             <input value={filters.search} onChange={(e) => onSetFilters(c => ({...c, search: e.target.value}))} placeholder="Search destination, slug, or title..." />
           </label>
-          <select className="input-field" value={filters.provider} onChange={(e) => onSetFilters(c => ({...c, provider: e.target.value}))}>
-            <option value="all">All Providers</option>
-            <option value="internal">Internal</option>
-            <option value="shortio">Short.io</option>
-          </select>
-          <select className="input-field" value={filters.status} onChange={(e) => onSetFilters(c => ({...c, status: e.target.value}))}>
-            <option value="all">All Status</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
+          <Select
+            className="w-full sm:w-auto sm:min-w-[150px]"
+            value={filters.provider}
+            onChange={(val) => onSetFilters(c => ({...c, provider: val}))}
+            options={[
+              { value: "all", label: "All Providers" },
+              { value: "internal", label: "Internal" },
+              { value: "shortio", label: "Short.io" }
+            ]}
+          />
+          <Select
+            className="w-full sm:w-auto sm:min-w-[150px]"
+            value={filters.status}
+            onChange={(val) => onSetFilters(c => ({...c, status: val}))}
+            options={[
+              { value: "all", label: "All Status" },
+              { value: "active", label: "Active" },
+              { value: "inactive", label: "Inactive" }
+            ]}
+          />
           <button className="btn-secondary" onClick={() => onSetFilters({search: "", provider: "all", status: "all"})}>Reset</button>
         </div>
 
@@ -160,29 +172,19 @@ export default function LinksTab({
                     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                       <div className="space-y-2">
                         <label className="label-text">QR Color</label>
-                        <div className="color-field h-11">
-                          <input type="color" value={editDraft.qrConfig?.dotsColor || DEFAULT_SETTINGS.dotsColor} onChange={(event) => onUpdateEditQrConfig("dotsColor", event.target.value)} />
-                          <span>{editDraft.qrConfig?.dotsColor || DEFAULT_SETTINGS.dotsColor}</span>
-                        </div>
+                        <ColorPicker label="QR" color={editDraft.qrConfig?.dotsColor || DEFAULT_SETTINGS.dotsColor} onChange={(val) => onUpdateEditQrConfig("dotsColor", val)} />
                       </div>
                       <div className="space-y-2">
                         <label className="label-text">Background</label>
-                        <div className="color-field h-11">
-                          <input type="color" value={editDraft.qrConfig?.backgroundColor || DEFAULT_SETTINGS.backgroundColor} onChange={(event) => onUpdateEditQrConfig("backgroundColor", event.target.value)} />
-                          <span>{editDraft.qrConfig?.backgroundColor || DEFAULT_SETTINGS.backgroundColor}</span>
-                        </div>
+                        <ColorPicker label="Background" color={editDraft.qrConfig?.backgroundColor || DEFAULT_SETTINGS.backgroundColor} onChange={(val) => onUpdateEditQrConfig("backgroundColor", val)} />
                       </div>
                       <div className="space-y-2">
                         <label className="label-text">Dot Pattern</label>
-                        <select className="input-field" value={editDraft.qrConfig?.dotsType || DEFAULT_SETTINGS.dotsType} onChange={(event) => onUpdateEditQrConfig("dotsType", event.target.value)}>
-                          {QR_STYLES.map((style) => (<option key={style} value={style}>{style}</option>))}
-                        </select>
+                        <Select value={editDraft.qrConfig?.dotsType || DEFAULT_SETTINGS.dotsType} onChange={(val) => onUpdateEditQrConfig("dotsType", val)} options={QR_STYLES} />
                       </div>
                       <div className="space-y-2">
                         <label className="label-text">Corner Style</label>
-                        <select className="input-field" value={editDraft.qrConfig?.cornersType || DEFAULT_SETTINGS.cornersType} onChange={(event) => onUpdateEditQrConfig("cornersType", event.target.value)}>
-                          {CORNER_STYLES.map((style) => (<option key={style} value={style}>{style}</option>))}
-                        </select>
+                        <Select value={editDraft.qrConfig?.cornersType || DEFAULT_SETTINGS.cornersType} onChange={(val) => onUpdateEditQrConfig("cornersType", val)} options={CORNER_STYLES} />
                       </div>
                     </div>
                     <div className="grid gap-4 sm:grid-cols-2">
@@ -192,10 +194,7 @@ export default function LinksTab({
                       </label>
                       <div className="space-y-2">
                         <label className="label-text">Gradient Color 2</label>
-                        <div className="color-field h-11">
-                          <input type="color" value={editDraft.qrConfig?.gradientColor2 || DEFAULT_SETTINGS.gradientColor2} onChange={(event) => onUpdateEditQrConfig("gradientColor2", event.target.value)} />
-                          <span>{editDraft.qrConfig?.gradientColor2 || DEFAULT_SETTINGS.gradientColor2}</span>
-                        </div>
+                        <ColorPicker label="Gradient" color={editDraft.qrConfig?.gradientColor2 || DEFAULT_SETTINGS.gradientColor2} onChange={(val) => onUpdateEditQrConfig("gradientColor2", val)} />
                       </div>
                     </div>
                   </div>

@@ -9,6 +9,8 @@ import {
 } from "lucide-react";
 import { CORNER_STYLES, INTERNAL_PREVIEW_DOMAIN, PROVIDERS, QR_STYLES, SHORT_IO_PREVIEW_DOMAIN } from "../lib/constants";
 import { cn } from "../lib/utils";
+import ColorPicker from "../components/ColorPicker";
+import Select from "../components/Select";
 
 export default function CreateTab({
   form,
@@ -48,21 +50,7 @@ export default function CreateTab({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <label className="label-text">Active Provider</label>
-            <div className="panel-inset flex items-center justify-between p-4 bg-slate-50 border-slate-100">
-               <div className="flex items-center gap-3">
-                 <div className={cn("p-2.5 rounded-lg", selectedProvider === 'shortio' ? "bg-sky-100 text-sky-600" : "bg-emerald-100 text-emerald-600")}>
-                    {selectedProvider === 'shortio' ? <Globe size={18} /> : <Zap size={18} />}
-                 </div>
-                 <div>
-                    <p className="text-sm font-bold text-slate-900">{PROVIDERS[selectedProvider]?.label}</p>
-                    <p className="text-[10px] text-slate-500 uppercase font-bold tracking-tight">Active for new links</p>
-                 </div>
-               </div>
-               <button type="button" onClick={onSwitchToProviders} className="text-xs text-primary-600 font-bold hover:underline">Change</button>
-            </div>
-          </div>
+
 
           <div className="space-y-4 pt-4 border-t border-slate-100">
             <div className="flex items-center gap-2 mb-4">
@@ -72,19 +60,19 @@ export default function CreateTab({
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <div className="space-y-2">
                 <label className="label-text">QR Color</label>
-                <div className="color-field h-11"><input type="color" value={settings.dotsColor} onChange={(e) => onUpdateSettingsField("dotsColor", e.target.value)} /><span>{settings.dotsColor}</span></div>
+                <ColorPicker label="QR" color={settings.dotsColor} onChange={(val) => onUpdateSettingsField("dotsColor", val)} />
               </div>
               <div className="space-y-2">
                 <label className="label-text">Background</label>
-                <div className="color-field h-11"><input type="color" value={settings.backgroundColor} onChange={(e) => onUpdateSettingsField("backgroundColor", e.target.value)} /><span>{settings.backgroundColor}</span></div>
+                <ColorPicker label="Background" color={settings.backgroundColor} onChange={(val) => onUpdateSettingsField("backgroundColor", val)} />
               </div>
               <div className="space-y-2">
                 <label className="label-text">Dot Pattern</label>
-                <select className="input-field" value={settings.dotsType} onChange={(e) => onUpdateSettingsField("dotsType", e.target.value)}>{QR_STYLES.map(s => <option key={s}>{s}</option>)}</select>
+                <Select value={settings.dotsType} onChange={(val) => onUpdateSettingsField("dotsType", val)} options={QR_STYLES} />
               </div>
               <div className="space-y-2">
                 <label className="label-text">Corner Style</label>
-                <select className="input-field" value={settings.cornersType} onChange={(e) => onUpdateSettingsField("cornersType", e.target.value)}>{CORNER_STYLES.map(s => <option key={s}>{s}</option>)}</select>
+                <Select value={settings.cornersType} onChange={(val) => onUpdateSettingsField("cornersType", val)} options={CORNER_STYLES} />
               </div>
             </div>
           </div>
